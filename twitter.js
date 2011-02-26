@@ -51,8 +51,9 @@ function twitter_login(req, resp) {
 
 	oa.getOAuthRequestToken(function (err, token, secret, results) {
 		if (err) {
+			console.error(err);
 			resp.writeHead(500, {});
-			resp.end(err);
+			resp.end('OAuth error.');
 			return;
 		}
 		var r = redis_client();
@@ -77,8 +78,10 @@ function go_time(req, resp, err, access_token, access_token_secret, results) {
 		resp.writeHead(500, {});
 		if (parseInt(err.statusCode) == 401)
 			resp.end("OAuth permission failure.");
-		else
-			resp.end(err);
+		else {
+			resp.end("OAuth error.");
+			console.error(err);
+		}
 		return;
 	}
 	req.session.username = results.screen_name;

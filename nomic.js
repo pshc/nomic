@@ -1,5 +1,6 @@
 var config = require('./config'),
     express = require('express'),
+    fs = require('fs'),
     jsdom = require('jsdom'),
     twitter = require('./twitter');
 
@@ -41,7 +42,7 @@ function dom_handler(f) {
 	};
 }
 
-app.get('/', dom_handler(function (req, resp, $) {
+app.get('/', dom_handler(function (req, resp, $, document) {
 	this.title = 'Nomic';
 	var username = req.session.username;
 	var greeting;
@@ -52,7 +53,27 @@ app.get('/', dom_handler(function (req, resp, $) {
 	else
 		greeting = 'Hi. <a href="login/">Login via Twitter</a>.';
 	$('body').append(greeting);
-	resp.send(this.render());
+	var self = this;
+	fs.readFile('rules.txt', 'UTF-8', function (err, rules) {
+		if (err)
+			throw err;
+		var ul = $('<ul/>').appendTo('body');
+		rules.split('\n').forEach(function (rule) {
+			var li = $('<li/>');
+			var m = rule.match(/^\s*(\d+)\.(.*)/);
+			if (m) {
+				rule = m[2];
+				li.attr('id', m[1]).attr('class', 'rule');
+				li.append('<a href="#' + m[1] + '">' + m[1] + '</a>.');
+			}
+			if (rule.match(/^\*.*\*$/))
+				rule = $('<b/>').text(rule.slice(1, -1));
+			else
+				rule = document.createTextNode(rule);
+			li.append(rule).appendTo(ul);
+		});
+		resp.send(self.render());
+	});
 }));
 
 app.post('/', function (req, resp) {

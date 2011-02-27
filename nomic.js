@@ -7,8 +7,41 @@ var config = require('./config'),
     redis = require('redis'),
     twitter = require('./twitter');
 
+var revision, rules;
+
 if (!config.REDIS_OPTIONS)
 	config.REDIS_OPTIONS = {port: 6379};
+
+function redis_client() {
+	return redis.createClient(config.REDIS_OPTIONS.port);
+}
+(function () {
+	var r = redis_client();
+	r.get('rev:ctr', function (err, num) {
+		if (err)
+			throw err;
+		revision = parseInt(num);
+		if (!revision) {
+			revision = 1;
+			rules = fs.readFileSync('rules.txt', 'UTF-8');
+			r.mset(['rev:ctr', revision, 'rev:1', rules], function (err, rs) {
+				if (err)
+					throw err;
+				console.log("Made initial revision.");
+				r.quit();
+			});
+		}
+		else {
+			r.get('rev:' + revision, function (err, val) {
+				if (err)
+					throw err;
+				rules = val;
+				console.log("At revision " + revision + ".");
+				r.quit();
+			});
+		}
+	});
+})();
 
 var app = express.createServer();
 
@@ -70,30 +103,27 @@ app.get('/', dom_handler(function (req, resp, $, document) {
 		form.attr('action', 'login/');
 	}
 	var self = this;
-	fs.readFile('rules.txt', 'UTF-8', function (err, rules) {
-		if (err)
-			throw err;
-		var ul = $('<ul/>').appendTo('body');
-		var num = 0;
-		rules.split('\n').forEach(function (rule) {
-			num++;
-			if (!rule.trim())
-				return;
-			var li = $('<li id="line' + num + '"><a>(0)</a></li>');
-			var m = rule.match(/^\s*(\d+)\.(.*)/);
-			if (m) {
-				rule = m[2];
-				li.attr('class', 'rule');
-				li.append('<a id="' + m[1] + '" href="#' + m[1] + '">' + m[1] + '</a>.');
-			}
-			if (rule.match(/^\*.*\*$/))
-				rule = $('<b/>').text(rule.slice(1, -1));
-			else
-				rule = document.createTextNode(rule);
-			li.append(rule).appendTo(ul);
-		});
-		resp.send(self.render());
+	var ul = $('<ul/>').appendTo('body');
+	var num = 0;
+	rules.split('\n').forEach(function (rule) {
+		num++;
+		if (!rule.trim())
+			return;
+		var li = $('<li id="line' + num + '"><a>(0)</a></li>');
+		var m = rule.match(/^\s*(\d+)\.(.*)/);
+		if (m) {
+			rule = m[2];
+			li.attr('class', 'rule');
+			var n = m[1];
+			li.append('<a id="' + n + '" href="#' + n + '">' + n + '</a>.');
+		}
+		if (rule.match(/^\*.*\*$/))
+			rule = $('<b/>').text(rule.slice(1, -1));
+		else
+			rule = document.createTextNode(rule);
+		li.append(rule).appendTo(ul);
 	});
+	resp.send(self.render());
 }));
 
 app.post('/', function (req, resp) {
@@ -111,15 +141,16 @@ if (config.DEBUG)
 		resp.redirect('..');
 	});
 else {
-	app.get('/login/', twitter.twitter_login);
-	app.post('/login/', twitter.twitter_login);
+	var t = twitter.twitter_login.bind(twitter, redis_client);
+	app.get('/login/', t);
+	app.post('/login/', t);
 }
 
 app.listen(config.HTTP_PORT);
 
 var listener = io.listen(app);
 listener.on('connection', function (socket) {
-	var r = redis.createClient(config.REDIS_OPTIONS.port);
+	var r = redis_client();
 	socket.on('message', function (data) {
 		if (typeof data != 'object')
 			return;

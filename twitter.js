@@ -14,12 +14,8 @@ var oa = new oauth.OAuth(request_token_url, access_token_url,
 
 var client_tokens = {};
 
-function redis_client() {
-	return redis.createClient(config.REDIS_OPTIONS.port);
-}
-
 var headers = {'Content-Type': 'text/html; charset=UTF-8'};
-function twitter_login(req, resp) {
+function twitter_login(redis_client, req, resp) {
 	var url = url_parse(req.url, true);
 
 	if (url.query.oauth_token && url.query.oauth_verifier) {

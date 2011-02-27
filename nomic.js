@@ -171,6 +171,7 @@ listener.on('connection', function (socket) {
 			});
 		}
 		else if (data.a == 'count' && rev) {
+			socket.revision = rev;
 			r.hgetall('rev:' + rev + ':count', function (err, counts) {
 				if (err)
 					return console.error(err); /* XXX */
@@ -190,7 +191,12 @@ listener.on('connection', function (socket) {
 				m.exec(function (err, rs) {
 					if (err)
 						return console.log(err); /* XXX */
-					socket.send({a: 'comment', line: line, v: msg, count: rs[0]});
+					var packet = {a: 'comment', line: line, v: msg, count: rs[0]};
+					for (var id in listener.clients) {
+						var client = listener.clients[id];
+						if (client.revision == rev)
+							client.send(packet);
+					}
 				});
 			});
 		}

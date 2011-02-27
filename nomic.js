@@ -83,7 +83,35 @@ function dom_handler(f) {
 	};
 }
 
-app.get('/', dom_handler(function (req, resp, $, document) {
+app.get('/', function (req, resp) {
+	resp.redirect('rev' + revision);
+});
+
+app.get('/rev:rev', function (req, resp) {
+	var rev = parseInt(req.param('rev'));
+	if (!rev)
+		resp.send(404);
+	else if (rev == revision)
+		render_revision(revision, rules, req, resp);
+	else {
+		var r = redis_client();
+		r.get('rev:' + rev, function (err, rules) {
+			r.quit();
+			if (err) {
+				resp.send(500);
+				console.error(err);
+			}
+			else if (!rules)
+				resp.send(404);
+			else
+				render_revision(rev, rules, req, resp);
+		});
+	}
+});
+
+function render_revision(rev, rules, req, resp) {
+	(new DOM(resp)).setup(function ($, document) {
+
 	this.title = 'Nomic';
 	var username = req.session.username;
 	var button = $('<input type="submit"/>');
@@ -133,7 +161,9 @@ app.get('/', dom_handler(function (req, resp, $, document) {
 		",transports:['websocket','htmlfile','xhr-multipart','xhr-polling','jsonp-polling']});</script>" +
 		'<script src="client.js"></script>';
 	resp.send(this.render(after));
-}));
+
+	}); /* DOM */
+}
 
 app.post('/', function (req, resp) {
 	if (req.body.logout) {

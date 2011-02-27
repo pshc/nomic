@@ -4,6 +4,7 @@ a {
 aside {
 	background-color: #f0f0f0;
 	border: 1px solid gray;
+	display: block;
 	margin: 0.5em 0 2em 0;
 	padding: 0.5em;
 	text-indent: 0;

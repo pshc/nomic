@@ -102,14 +102,14 @@ app.get('/', dom_handler(function (req, resp, $, document) {
 		button.attr('value', 'Login via Twitter');
 		form.attr('action', 'login/');
 	}
-	var self = this;
+	$('<h3>Revision ' + revision + '</h3>').appendTo('body');
 	var ul = $('<ul/>').appendTo('body');
 	var num = 0;
 	rules.split('\n').forEach(function (rule) {
 		num++;
 		if (!rule.trim())
 			return;
-		var li = $('<li id="line' + num + '"><a>(0)</a></li>');
+		var li = $('<li id="line' + num + '"/>');
 		var m = rule.match(/^\s*(\d+)\.(.*)/);
 		if (m) {
 			rule = m[2];
@@ -123,7 +123,7 @@ app.get('/', dom_handler(function (req, resp, $, document) {
 			rule = document.createTextNode(rule);
 		li.append(rule).appendTo(ul);
 	});
-	resp.send(self.render());
+	resp.send(this.render());
 }));
 
 app.post('/', function (req, resp) {
@@ -155,6 +155,13 @@ listener.on('connection', function (socket) {
 			return;
 		if (data.a == 'expand' && data.line)
 			socket.send({a: 'expand', line: data.line, v: ['mite b cool']});
+		else if (data.a == 'count' && parseInt(data.rev)) {
+			r.hgetall('rev:' + parseInt(data.rev) + ':count', function (err, counts) {
+				if (err)
+					return console.log(err);
+				socket.send({a: 'count', v: counts});
+			});
+		}
 	});
 	socket.on('disconnect', function () {
 		r.quit();

@@ -19,12 +19,6 @@ li {
 	padding: 0 0 0 2em;
 	text-indent: 1em;
 }
-li > a:first-child {
-	cursor: pointer;
-	left: 42em;
-	position: absolute;
-	text-indent: 0;
-}
 ul {
 	list-style: none;
 	margin: 0;
@@ -34,4 +28,10 @@ ul {
 .rule {
 	padding-top: 1em;
 	text-indent: -2em;
+}
+.talk {
+	cursor: pointer;
+	left: 42em;
+	position: absolute;
+	text-indent: 0;
 }

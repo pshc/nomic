@@ -30,11 +30,13 @@ DOM.prototype.setup = function (callback) {
 		callback.call(self, window.$, window.document);
 	});
 };
-var jquery_js = path.join(__dirname, 'lib', 'jquery-1.5.min.js');
+var jquery_js = path.join(__dirname, 'www', 'jquery-1.5.min.js');
 
 DOM.prototype.render = function () {
 	var body = this.document.body.innerHTML;
 	return '<!doctype html><title>' + this.title + '</title>' +
+		'<script src="jquery-1.5.min.js"></script>' +
+		'<script src="client.js"></script>' +
 		'<link rel="stylesheet" href="style.css">' +
 		body;
 };
@@ -66,12 +68,14 @@ app.get('/', dom_handler(function (req, resp, $, document) {
 			throw err;
 		var ul = $('<ul/>').appendTo('body');
 		rules.split('\n').forEach(function (rule) {
-			var li = $('<li/>');
+			if (!rule.trim())
+				return;
+			var li = $('<li><a>(0)</a></li>');
 			var m = rule.match(/^\s*(\d+)\.(.*)/);
 			if (m) {
 				rule = m[2];
-				li.attr('id', m[1])
-				li.append('<a class="rule" href="#' + m[1] + '">' + m[1] + '</a>.');
+				li.attr('id', m[1]).attr('class', 'rule');
+				li.append('<a href="#' + m[1] + '">' + m[1] + '</a>.');
 			}
 			if (rule.match(/^\*.*\*$/))
 				rule = $('<b/>').text(rule.slice(1, -1));

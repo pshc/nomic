@@ -49,14 +49,17 @@ function dom_handler(f) {
 app.get('/', dom_handler(function (req, resp, $, document) {
 	this.title = 'Nomic';
 	var username = req.session.username;
-	var greeting;
-	if (username)
-		greeting = 'Hi ' + username + '! ' +
-		'<form method="POST" action=".">' +
-		'<input type="submit" name="logout" value="Logout"></form>';
-	else
-		greeting = 'Hi. <a href="login/">Login via Twitter</a>.';
-	$('body').append(greeting);
+	var button = $('<input type="submit"/>');
+	var form = $('<form method="POST"/>').append(button).appendTo('body');
+	if (username) {
+		form.prepend('Hi ' + username + '! ');
+		button.attr('name', 'logout').attr('value', 'Logout');
+		form.attr('action', '.');
+	}
+	else {
+		button.attr('value', 'Login via Twitter');
+		form.attr('action', 'login/');
+	}
 	var self = this;
 	fs.readFile('rules.txt', 'UTF-8', function (err, rules) {
 		if (err)
@@ -90,11 +93,13 @@ app.post('/', function (req, resp) {
 });
 
 if (config.DEBUG)
-	app.get('/login/', function (req, resp) {
+	app.post('/login/', function (req, resp) {
 		req.session.username = 'test';
 		resp.redirect('..');
 	});
-else
+else {
 	app.get('/login/', twitter.twitter_login);
+	app.post('/login/', twitter.twitter_login);
+}
 
 app.listen(config.HTTP_PORT);

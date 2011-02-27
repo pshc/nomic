@@ -141,9 +141,8 @@ if (config.DEBUG)
 		resp.redirect('..');
 	});
 else {
-	var t = twitter.twitter_login.bind(twitter, redis_client);
-	app.get('/login/', t);
-	app.post('/login/', t);
+	app.post('/login/', twitter.start_login.bind(twitter, redis_client));
+	app.get('/login/', twitter.confirm_login.bind(twitter, redis_client));
 }
 
 app.listen(config.HTTP_PORT);

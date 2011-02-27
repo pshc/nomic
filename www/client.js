@@ -39,7 +39,7 @@ $(document).click(function (event) {
 		return true;
 	if (li.children('aside').detach().length)
 		return false;
-	socket.send({a: 'expand', rev: revision, line: li.attr('id').slice(4)});
+	socket.send({a: 'expand', line: li.attr('id').slice(4)});
 });
 
 $(document).keydown(function (event) {
@@ -55,7 +55,7 @@ $(document).keydown(function (event) {
 	var v = input.val().trim();
 	if (!m || !v)
 		return true;
-	socket.send({a: 'comment', rev: revision, line: m[1], v: v, pin: pin});
+	socket.send({a: 'comment', line: m[1], v: v, pin: pin});
 	input.val('');
 });
 

@@ -192,7 +192,7 @@ listener.on('connection', function (socket) {
 	socket.on('message', function (data) {
 		if (typeof data != 'object')
 			return;
-		var rev = parseInt(data.rev), line = parseInt(data.line);
+		var line = parseInt(data.line), rev = socket.revision;
 		if (data.a == 'expand' && rev && line) {
 			r.lrange('rev:'+rev+':line:'+line, 0, -1, function (err, v) {
 				if (err)
@@ -200,12 +200,19 @@ listener.on('connection', function (socket) {
 				socket.send({a: 'expand', line: line, v: v});
 			});
 		}
-		else if (data.a == 'count' && rev) {
-			socket.revision = rev;
-			r.hgetall('rev:' + rev + ':count', function (err, counts) {
+		else if (data.a == 'count' && parseInt(data.rev)) {
+			rev = parseInt(data.rev);
+			r.exists('rev:' + rev, function (err, exists) {
 				if (err)
 					return console.error(err); /* XXX */
-				socket.send({a: 'count', v: counts});
+				if (!exists)
+					return; /* XXX */
+				socket.revision = rev;
+				r.hgetall('rev:' + rev + ':count', function (err, counts) {
+					if (err)
+						return console.error(err); /* XXX */
+					socket.send({a: 'count', v: counts});
+				});
 			});
 		}
 		else if (data.a == 'comment' && rev && line && data.v && data.pin) {

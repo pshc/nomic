@@ -8,10 +8,17 @@ aside {
 	padding: 0.5em;
 	text-indent: 0;
 }
+aside input {
+	width: 98%;
+}
 b {
 	display: block;
 	margin-top: 3em;
 	text-indent: 0;
+}
+em {
+	display: block;
+	font-style: normal;
 }
 li {
 	display: block;

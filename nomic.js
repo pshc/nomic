@@ -162,13 +162,36 @@ listener.on('connection', function (socket) {
 	socket.on('message', function (data) {
 		if (typeof data != 'object')
 			return;
-		if (data.a == 'expand' && data.line)
-			socket.send({a: 'expand', line: data.line, v: ['mite b cool']});
-		else if (data.a == 'count' && parseInt(data.rev)) {
-			r.hgetall('rev:' + parseInt(data.rev) + ':count', function (err, counts) {
+		var rev = parseInt(data.rev), line = parseInt(data.line);
+		if (data.a == 'expand' && rev && line) {
+			r.lrange('rev:'+rev+':line:'+line, 0, -1, function (err, v) {
 				if (err)
-					return console.log(err);
+					return console.error(err); /* XXX */
+				socket.send({a: 'expand', line: line, v: v});
+			});
+		}
+		else if (data.a == 'count' && rev) {
+			r.hgetall('rev:' + rev + ':count', function (err, counts) {
+				if (err)
+					return console.error(err); /* XXX */
 				socket.send({a: 'count', v: counts});
+			});
+		}
+		else if (data.a == 'comment' && rev && line && data.v && data.pin) {
+			r.get('pin:' + data.pin, function (err, username) {
+				if (err)
+					return console.error(err);
+				if (!username)
+					return; /* XXX: report */
+				var msg = '<' + username + '> ' + data.v;
+				var m = r.multi();
+				m.hincrby('rev:'+rev+':count', line, 1);
+				m.rpush('rev:'+rev+':line:'+line, msg);
+				m.exec(function (err, rs) {
+					if (err)
+						return console.log(err); /* XXX */
+					socket.send({a: 'comment', line: line, v: msg, count: rs[0]});
+				});
 			});
 		}
 	});

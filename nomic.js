@@ -2,6 +2,7 @@ var config = require('./config'),
     express = require('express'),
     fs = require('fs'),
     jsdom = require('jsdom'),
+    path = require('path'),
     twitter = require('./twitter');
 
 var app = express.createServer();
@@ -9,6 +10,7 @@ var app = express.createServer();
 app.use(express.bodyDecoder());
 app.use(express.cookieDecoder());
 app.use(express.session(config.SESSION_CONFIG));
+app.use(express.staticProvider(path.join(__dirname, 'www')));
 
 function DOM(resp) {
 	this.resp = resp;
@@ -28,11 +30,13 @@ DOM.prototype.setup = function (callback) {
 		callback.call(self, window.$, window.document);
 	});
 };
-var jquery_js = require('path').join(__dirname, 'lib', 'jquery-1.5.min.js');
+var jquery_js = path.join(__dirname, 'lib', 'jquery-1.5.min.js');
 
 DOM.prototype.render = function () {
 	var body = this.document.body.innerHTML;
-	return '<!doctype html><title>' + this.title + '</title>' + body;
+	return '<!doctype html><title>' + this.title + '</title>' +
+		'<link rel="stylesheet" href="style.css">' +
+		body;
 };
 
 function dom_handler(f) {
@@ -63,8 +67,8 @@ app.get('/', dom_handler(function (req, resp, $, document) {
 			var m = rule.match(/^\s*(\d+)\.(.*)/);
 			if (m) {
 				rule = m[2];
-				li.attr('id', m[1]).attr('class', 'rule');
-				li.append('<a href="#' + m[1] + '">' + m[1] + '</a>.');
+				li.attr('id', m[1])
+				li.append('<a class="rule" href="#' + m[1] + '">' + m[1] + '</a>.');
 			}
 			if (rule.match(/^\*.*\*$/))
 				rule = $('<b/>').text(rule.slice(1, -1));

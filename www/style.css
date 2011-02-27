@@ -1,0 +1,23 @@
+a {
+	color: gray;
+}
+b {
+	display: block;
+	margin: 2em 0 0 -3em;
+}
+li {
+	margin: 0.5em 0;
+	padding: 0 0 0 2em;
+	text-indent: 1em;
+}
+ul {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	width: 40em;
+}
+.rule {
+	display: inline-block;
+	margin-top: 1em;
+	margin-left: -4em;
+}

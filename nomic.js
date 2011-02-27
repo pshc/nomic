@@ -1,9 +1,14 @@
 var config = require('./config'),
     express = require('express'),
     fs = require('fs'),
+    io = require('socket.io'),
     jsdom = require('jsdom'),
     path = require('path'),
+    redis = require('redis'),
     twitter = require('./twitter');
+
+if (!config.REDIS_OPTIONS)
+	config.REDIS_OPTIONS = {port: 6379};
 
 var app = express.createServer();
 
@@ -33,12 +38,14 @@ DOM.prototype.setup = function (callback) {
 var jquery_js = path.join(__dirname, 'www', 'jquery-1.5.min.js');
 
 DOM.prototype.render = function () {
-	var body = this.document.body.innerHTML;
 	return '<!doctype html><title>' + this.title + '</title>' +
+		'<script></script><link rel="stylesheet" href="style.css">' +
+		this.document.body.innerHTML +
 		'<script src="jquery-1.5.min.js"></script>' +
-		'<script src="client.js"></script>' +
-		'<link rel="stylesheet" href="style.css">' +
-		body;
+		'<script src="socket.io.js"></script>' +
+		'<script>socket=new io.Socket(location.domain,{port:' + config.HTTP_PORT +
+		",transports:['websocket','htmlfile','xhr-multipart','xhr-polling','jsonp-polling']});</script>" +
+		'<script src="client.js"></script>';
 };
 
 function dom_handler(f) {
@@ -67,15 +74,17 @@ app.get('/', dom_handler(function (req, resp, $, document) {
 		if (err)
 			throw err;
 		var ul = $('<ul/>').appendTo('body');
+		var num = 0;
 		rules.split('\n').forEach(function (rule) {
+			num++;
 			if (!rule.trim())
 				return;
-			var li = $('<li><a>(0)</a></li>');
+			var li = $('<li id="line' + num + '"><a>(0)</a></li>');
 			var m = rule.match(/^\s*(\d+)\.(.*)/);
 			if (m) {
 				rule = m[2];
-				li.attr('id', m[1]).attr('class', 'rule');
-				li.append('<a href="#' + m[1] + '">' + m[1] + '</a>.');
+				li.attr('class', 'rule');
+				li.append('<a id="' + m[1] + '" href="#' + m[1] + '">' + m[1] + '</a>.');
 			}
 			if (rule.match(/^\*.*\*$/))
 				rule = $('<b/>').text(rule.slice(1, -1));
@@ -107,3 +116,25 @@ else {
 }
 
 app.listen(config.HTTP_PORT);
+
+var listener = io.listen(app);
+listener.on('connection', function (socket) {
+	var r = redis.createClient(config.REDIS_OPTIONS.port);
+	socket.on('message', function (data) {
+		if (typeof data != 'object')
+			return;
+		if (data.a == 'expand' && data.line)
+			socket.send({a: 'expand', line: data.line, v: ['mite b cool']});
+	});
+	socket.on('disconnect', function () {
+		r.quit();
+	});
+	socket.on('error', function (err) {
+		console.error(err);
+		r.quit();
+	});
+	r.on('error', function (err) {
+		console.error(err);
+	});
+});
+listener.on('error', console.error.bind(console));

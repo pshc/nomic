@@ -70,15 +70,10 @@ DOM.prototype.setup = function (callback) {
 };
 var jquery_js = path.join(__dirname, 'www', 'jquery-1.5.min.js');
 
-DOM.prototype.render = function () {
+DOM.prototype.render = function (after) {
 	return '<!doctype html><title>' + this.title + '</title>' +
 		'<script></script><link rel="stylesheet" href="style.css">' +
-		this.document.body.innerHTML +
-		'<script src="jquery-1.5.min.js"></script>' +
-		'<script src="socket.io.js"></script>' +
-		'<script>socket=new io.Socket(location.domain,{port:' + config.HTTP_PORT +
-		",transports:['websocket','htmlfile','xhr-multipart','xhr-polling','jsonp-polling']});</script>" +
-		'<script src="client.js"></script>';
+		this.document.body.innerHTML + after;
 };
 
 function dom_handler(f) {
@@ -93,10 +88,19 @@ app.get('/', dom_handler(function (req, resp, $, document) {
 	var username = req.session.username;
 	var button = $('<input type="submit"/>');
 	var form = $('<form method="POST"/>').append(button).appendTo('body');
+	var pin;
 	if (username) {
 		form.prepend('Hi ' + username + '! ');
 		button.attr('name', 'logout').attr('value', 'Logout');
 		form.attr('action', '.');
+		pin = Math.ceil(Math.random() * 1e16);
+		/* XXX: Should wait for completion */
+		var r = redis_client();
+		r.multi().set('pin:' + pin, username).expire('pin:' + pin, 60*60*24).exec(function (err) {
+			if (err)
+				console.error(err);
+			r.quit();
+		});
 	}
 	else {
 		button.attr('value', 'Login via Twitter');
@@ -123,7 +127,12 @@ app.get('/', dom_handler(function (req, resp, $, document) {
 			rule = document.createTextNode(rule);
 		li.append(rule).appendTo(ul);
 	});
-	resp.send(this.render());
+	var after = '<script src="jquery-1.5.min.js"></script>' +
+		'<script src="socket.io.js"></script><script>' + (pin ? 'pin=' + pin + ';' : '') +
+		'socket=new io.Socket(location.domain,{port:' + config.HTTP_PORT +
+		",transports:['websocket','htmlfile','xhr-multipart','xhr-polling','jsonp-polling']});</script>" +
+		'<script src="client.js"></script>';
+	resp.send(this.render(after));
 }));
 
 app.post('/', function (req, resp) {

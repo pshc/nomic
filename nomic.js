@@ -137,6 +137,10 @@ function render_revision(rev, rules, req, resp) {
 		form.attr('action', 'login/');
 	}
 	$('<h3>Revision ' + rev + '</h3>').appendTo('body');
+	if (rev > 1)
+		$('body').append('<a href="rev' + (rev-1) + '">Previous revision</a><br />');
+	if (rev < revision)
+		$('body').append('<a href="rev' + (rev+1) + '">Next revision</a><br />');
 	var ul = $('<ul/>').appendTo('body');
 	var num = 0;
 	rules.split('\n').forEach(function (rule) {
@@ -151,8 +155,8 @@ function render_revision(rev, rules, req, resp) {
 			var n = m[1];
 			li.append('<a id="' + n + '" href="#' + n + '">' + n + '</a>.');
 		}
-		if (rule.match(/^\*.*\*$/))
-			rule = $('<b/>').text(rule.slice(1, -1));
+		if (rule.match(/^\s*\*.*\*\s*$/))
+			rule = $('<b/>').text(rule.trim().slice(1, -1));
 		else
 			rule = document.createTextNode(rule);
 		li.append(rule).appendTo(ul);

@@ -73,7 +73,7 @@ var jquery_js = path.join(__dirname, 'www', 'jquery-1.5.min.js');
 DOM.prototype.render = function (after) {
 	return '<!doctype html><title>' + this.title + '</title>' +
 		'<script></script><link rel="stylesheet" href="style.css">' +
-		this.document.body.innerHTML + after;
+		this.document.body.innerHTML + (after || '');
 };
 
 function dom_handler(f) {
@@ -129,12 +129,14 @@ function render_revision(rev, rules, req, resp) {
 				console.error(err);
 			r.quit();
 		});
+		if (rev == revision && can_revise(username))
+			form.after('<a href="new/">New revision</a>');
 	}
 	else {
 		button.attr('value', 'Login via Twitter');
 		form.attr('action', 'login/');
 	}
-	$('<h3>Revision ' + revision + '</h3>').appendTo('body');
+	$('<h3>Revision ' + rev + '</h3>').appendTo('body');
 	var ul = $('<ul/>').appendTo('body');
 	var num = 0;
 	rules.split('\n').forEach(function (rule) {
@@ -183,6 +185,38 @@ else {
 	app.post('/login/', twitter.start_login.bind(twitter, redis_client));
 	app.get('/login/', twitter.confirm_login.bind(twitter, redis_client));
 }
+
+function can_revise(username) {
+	return username == 'pshc' || config.DEBUG;
+}
+
+app.get('/new/', dom_handler(function (req, resp, $, document) {
+	if (!can_revise(req.session.username))
+		return send(403);
+	this.title = 'New revision';
+	var textarea = $('<textarea name="v">').text(rules);
+	var form = $('<form method="POST" action="."><input type="submit"></form>').prepend(textarea);
+	$('body').append('<h3>New revision</h3>').append(form);
+	resp.send(this.render());
+}));
+
+app.post('/new/', function (req, resp) {
+	if (!req.body.v)
+		return req.send(400);
+	var r = redis_client();
+	r.incr('rev:ctr', function (err, new_rev) {
+		if (err)
+			throw err;
+		r.multi().set('rev:' + new_rev, req.body.v).exec(function (err) {
+			if (err)
+				throw err;
+			/* XXX Race condition */
+			revision = new_rev;
+			rules = req.body.v;
+			resp.redirect('..');
+		});
+	});
+});
 
 app.listen(config.HTTP_PORT);
 

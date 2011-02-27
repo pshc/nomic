@@ -1,15 +1,13 @@
 var config = require('./config'),
     express = require('express'),
     jsdom = require('jsdom'),
-    RedisStore = require('connect-redis'),
     twitter = require('./twitter');
 
 var app = express.createServer();
 
 app.use(express.bodyDecoder());
 app.use(express.cookieDecoder());
-app.use(express.session({ store: new RedisStore(config.REDIS_OPTIONS),
-		secret: config.SESSION_SECRET }));
+app.use(express.session(config.SESSION_CONFIG));
 
 function DOM(resp) {
 	this.resp = resp;
@@ -46,8 +44,6 @@ function dom_handler(f) {
 app.get('/', dom_handler(function (req, resp, $) {
 	this.title = 'Nomic';
 	var username = req.session.username;
-	if (config.DEBUG)
-		username = 'test';
 	var greeting;
 	if (username)
 		greeting = 'Hi ' + username + '! ' +
@@ -68,6 +64,12 @@ app.post('/', function (req, resp) {
 		req.next();
 });
 
-app.get('/login/', twitter.twitter_login);
+if (config.DEBUG)
+	app.get('/login/', function (req, resp) {
+		req.session.username = 'test';
+		resp.redirect('..');
+	});
+else
+	app.get('/login/', twitter.twitter_login);
 
 app.listen(config.HTTP_PORT);

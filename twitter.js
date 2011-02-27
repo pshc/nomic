@@ -15,7 +15,8 @@ var oa = new oauth.OAuth(request_token_url, access_token_url,
 var client_tokens = {};
 
 function redis_client() {
-	return redis.createClient(config.REDIS_OPTIONS.port);
+	return redis.createClient(config.REDIS_OPTIONS ?
+			config.REDIS_OPTIONS.port : 6379);
 }
 
 var headers = {'Content-Type': 'text/html; charset=UTF-8'};

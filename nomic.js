@@ -1,8 +1,8 @@
 var config = require('./config'),
+    dom = require('./dom'),
     express = require('express'),
     fs = require('fs'),
     io = require('socket.io'),
-    jsdom = require('jsdom'),
     path = require('path'),
     redis = require('redis'),
     twitter = require('./twitter');
@@ -50,39 +50,6 @@ app.use(express.cookieDecoder());
 app.use(express.session(config.SESSION_CONFIG));
 app.use(express.staticProvider(path.join(__dirname, 'www')));
 
-function DOM(resp) {
-	this.resp = resp;
-}
-
-DOM.prototype.setup = function (callback) {
-	var self = this;
-	jsdom.env("<html><body></body></html>", [jquery_js],
-			function(errors, window) {
-		if (errors) {
-			console.error(errors);
-			resp.send("Server-side DOM error.", 500);
-			return;
-		}
-		self.$ = window.$;
-		self.document = window.document;
-		callback.call(self, window.$, window.document);
-	});
-};
-var jquery_js = path.join(__dirname, 'www', 'jquery-1.5.min.js');
-
-DOM.prototype.render = function (after) {
-	return '<!doctype html><title>' + this.title + '</title>' +
-		'<script></script><link rel="stylesheet" href="style.css">' +
-		this.document.body.innerHTML + (after || '');
-};
-
-function dom_handler(f) {
-	return function (req, resp) {
-		var dom = new DOM(resp);
-		dom.setup(f.bind(dom, req, resp));
-	};
-}
-
 app.get('/', function (req, resp) {
 	resp.redirect('rev' + revision);
 });
@@ -109,9 +76,8 @@ app.get('/rev:rev', function (req, resp) {
 	}
 });
 
-function render_revision(rev, rules, req, resp) {
-	(new DOM(resp)).setup(function ($, document) {
-
+var render_revision = dom.handler(function (rev, rules, req, resp, $) {
+	var document = this.document;
 	this.title = 'Nomic';
 	var username = req.session.username;
 	var button = $('<input type="submit"/>');
@@ -167,9 +133,7 @@ function render_revision(rev, rules, req, resp) {
 		",transports:['websocket','htmlfile','xhr-multipart','xhr-polling','jsonp-polling']});</script>" +
 		'<script src="client.js"></script>';
 	resp.send(this.render(after));
-
-	}); /* DOM */
-}
+});
 
 app.post('/', function (req, resp) {
 	if (req.body.logout) {
@@ -194,7 +158,7 @@ function can_revise(username) {
 	return username == 'pshc' || config.DEBUG;
 }
 
-app.get('/new/', dom_handler(function (req, resp, $, document) {
+app.get('/new/', dom.handler(function (req, resp, $, document) {
 	if (!can_revise(req.session.username))
 		return send(403);
 	this.title = 'New revision';

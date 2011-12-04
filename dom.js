@@ -28,9 +28,15 @@ DOM.prototype.render = function (after) {
 		this.document.body.innerHTML + (after || '');
 };
 
+/* Wraps given function; last argument must be a Response object */
 exports.handler = function (f) {
-	return function (req, resp) {
+	return function () {
+		var len = arguments.length;
+		var resp = arguments[len-1];
 		var d = new DOM(resp);
-		d.setup(f.bind(d, req, resp));
+		var args = [null, d];
+		for (var i = 0; i < len; i++)
+			args.push(arguments[i]);
+		d.setup(f.bind.apply(args));
 	};
 };

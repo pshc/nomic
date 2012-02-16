@@ -1,6 +1,5 @@
 var config = require('./config'),
     dom = require('./dom'),
-    express = require('express'),
     fs = require('fs'),
     io = require('socket.io'),
     path = require('path'),
@@ -8,9 +7,6 @@ var config = require('./config'),
     twitter = require('./twitter');
 
 var revision, rules;
-
-if (!config.REDIS_OPTIONS)
-	config.REDIS_OPTIONS = {port: 6379};
 
 function redis_client() {
 	return redis.createClient(config.REDIS_OPTIONS.port);
@@ -20,7 +16,7 @@ function redis_client() {
 	r.get('rev:ctr', function (err, num) {
 		if (err)
 			throw err;
-		revision = parseInt(num);
+		revision = parseInt(num, 10);
 		if (!revision) {
 			revision = 1;
 			rules = fs.readFileSync('rules.txt', 'UTF-8');
@@ -43,23 +39,41 @@ function redis_client() {
 	});
 })();
 
-var app = express.createServer();
+var routes = {get: [], post: []};
+function route(method, path, func) {
+	routes[method].push({re: path, func: func});
+}
 
-app.use(express.bodyDecoder());
-app.use(express.cookieDecoder());
-app.use(express.session(config.SESSION_CONFIG));
-app.use(express.staticProvider(path.join(__dirname, 'www')));
-
-app.get('/', function (req, resp) {
-	resp.redirect('rev' + revision);
+var server = require('http').createServer(function (req, resp) {
+	var rs = routes[req.method.toLowerCase()];
+	var url = req.url;
+	if (rs) {
+		for (var i = 0; i < rs.length; i++) {
+			var route = rs[i];
+			var m = url.match(route.re);
+			if (m) {
+				req.params = [];
+				for (var j = 1; j <= m.length; j++)
+					req.params.push(m[j]);
+				route.func(req, resp);
+				return;
+			}
+		}
+	}
+	console.log('wtf is', url);
+	notFound(resp);
 });
 
-app.get('/rev:rev', function (req, resp) {
-	var rev = parseInt(req.param('rev'));
+route('get', /^\/$/, function (req, resp) {
+	redirect(resp, 'rev' + revision);
+});
+
+route('get', /^\/rev(\d+)/, function (req, resp) {
+	var rev = parseInt(req.params[0], 10);
 	if (!rev)
-		resp.send(404);
+		notFound(resp);
 	else if (rev == revision)
-		render_revision(revision, rules, req, resp);
+		render_revision(req, resp, {rev: revision, rules: rules});
 	else {
 		var r = redis_client();
 		r.get('rev:' + rev, function (err, rules) {
@@ -71,12 +85,14 @@ app.get('/rev:rev', function (req, resp) {
 			else if (!rules)
 				resp.send(404);
 			else
-				render_revision(rev, rules, req, resp);
+				render_revision(req, resp, {rev: rev, rules: rules});
 		});
 	}
 });
 
-var render_revision = dom.handler(function (rev, rules, req, resp, $) {
+var render_revision = dom.handler(function (req, resp, context, $) {
+	var rev = context.rev, rules = context.rules;
+	console.log('rendering', rules);
 	var document = this.document;
 	this.title = 'Nomic';
 	var username = req.session.username;
@@ -127,48 +143,50 @@ var render_revision = dom.handler(function (rev, rules, req, resp, $) {
 			rule = document.createTextNode(rule);
 		li.append(rule).appendTo(ul);
 	});
+	this.write(resp);
 	var after = '<script src="jquery-1.5.min.js"></script>' +
 		'<script src="socket.io.js"></script><script>' + (pin ? 'pin=' + pin + ';' : '') +
 		'socket=new io.Socket(location.domain,{port:' + config.HTTP_PORT +
-		",transports:['websocket','htmlfile','xhr-multipart','xhr-polling','jsonp-polling']});</script>" +
+		",transports:['htmlfile','xhr-polling','jsonp-polling']});</script>" +
 		'<script src="client.js"></script>';
-	resp.send(this.render(after));
+	resp.end(after);
 });
 
-app.post('/', function (req, resp) {
+route('post', /^\/$/, function (req, resp) {
 	if (req.body.logout) {
 		delete req.session.username;
-		resp.redirect('.');
+		redirect(resp, '.');
 	}
 	else
-		req.next();
+		notFound(resp);
 });
 
 if (config.DEBUG)
-	app.post('/login/', function (req, resp) {
+	route('post', /^\/login\/$/, function (req, resp) {
 		req.session.username = 'test';
 		resp.redirect('..');
 	});
 else {
-	app.post('/login/', twitter.start_login.bind(twitter, redis_client));
-	app.get('/login/', twitter.confirm_login.bind(twitter, redis_client));
+	route('post', /^\/login\/$/, twitter.start_login.bind(twitter, redis_client));
+	route('get', /^\/login\/$/, twitter.confirm_login.bind(twitter, redis_client));
 }
 
 function can_revise(username) {
 	return username == 'pshc' || config.DEBUG;
 }
 
-app.get('/new/', dom.handler(function (req, resp, $, document) {
+route('get', /^\/new\/$/, dom.handler(function (req, resp, context, $) {
 	if (!can_revise(req.session.username))
 		return send(403);
 	this.title = 'New revision';
 	var textarea = $('<textarea name="v">').text(rules);
 	var form = $('<form method="POST" action="."><input type="submit"></form>').prepend(textarea);
 	$('body').append('<h3>New revision</h3>').append(form);
-	resp.send(this.render());
+	this.write(resp);
+	resp.end();
 }));
 
-app.post('/new/', function (req, resp) {
+route('post', /^\/new\/$/, function (req, resp) {
 	if (!req.body.v)
 		return req.send(400);
 	var r = redis_client();
@@ -186,15 +204,25 @@ app.post('/new/', function (req, resp) {
 	});
 });
 
-app.listen(config.HTTP_PORT);
+function notFound(resp) {
+	resp.writeHead(404);
+	resp.end('404');
+}
 
-var listener = io.listen(app);
+function redirect(resp, href) {
+	resp.writeHead(303, {Location: href});
+	resp.end();
+}
+
+server.listen(config.HTTP_PORT);
+
+var listener = io.listen(server);
 listener.on('connection', function (socket) {
 	var r = redis_client();
 	socket.on('message', function (data) {
 		if (typeof data != 'object')
 			return;
-		var line = parseInt(data.line), rev = socket.revision;
+		var line = parseInt(data.line, 10), rev = socket.revision;
 		if (data.a == 'expand' && rev && line) {
 			r.lrange('rev:'+rev+':line:'+line, 0, -1, function (err, v) {
 				if (err)
@@ -202,8 +230,8 @@ listener.on('connection', function (socket) {
 				socket.send({a: 'expand', line: line, v: v});
 			});
 		}
-		else if (data.a == 'count' && parseInt(data.rev)) {
-			rev = parseInt(data.rev);
+		else if (data.a == 'count' && parseInt(data.rev, 10)) {
+			rev = parseInt(data.rev, 10);
 			r.exists('rev:' + rev, function (err, exists) {
 				if (err)
 					return console.error(err); /* XXX */

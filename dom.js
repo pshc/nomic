@@ -17,26 +17,21 @@ DOM.prototype.setup = function (callback) {
 		}
 		self.$ = window.$;
 		self.document = window.document;
-		callback.call(self, window.$, window.document);
+		callback.call(self, window.$);
 	});
 };
 var jquery_js = path.join(__dirname, 'www', 'jquery-1.5.min.js');
 
-DOM.prototype.render = function (after) {
-	return '<!doctype html><title>' + this.title + '</title>' +
-		'<script></script><link rel="stylesheet" href="style.css">' +
-		this.document.body.innerHTML + (after || '');
+DOM.prototype.write = function (resp) {
+	resp.write('<!doctype html><title>' + this.title + '</title>' +
+		'<script></script><link rel="stylesheet" href="style.css">');
+	resp.write(this.document.body.innerHTML);
 };
 
 /* Wraps given function; last argument must be a Response object */
 exports.handler = function (f) {
-	return function () {
-		var len = arguments.length;
-		var resp = arguments[len-1];
+	return function (req, resp, context) {
 		var d = new DOM(resp);
-		var args = [null, d];
-		for (var i = 0; i < len; i++)
-			args.push(arguments[i]);
-		d.setup(f.bind.apply(args));
+		d.setup(f.bind(null, req, resp, context));
 	};
 };
